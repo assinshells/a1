@@ -1,15 +1,25 @@
+import { createServer } from "http";
 import app from "./app.js";
 import config from "./config/env.js";
 import { serverLogger } from "./config/logger.js";
 import { closeDB } from "./config/db.js";
+import { initializeSocket } from "./config/socket.js";
 
 let server;
+let io;
 
 /**
  * Запуск сервера
  */
 const startServer = () => {
-  server = app.listen(config.port, () => {
+  // Создаем HTTP сервер
+  const httpServer = createServer(app);
+
+  // Инициализируем Socket.IO
+  io = initializeSocket(httpServer);
+
+  // Запускаем сервер
+  server = httpServer.listen(config.port, () => {
     serverLogger.info(
       {
         port: config.port,
@@ -18,6 +28,7 @@ const startServer = () => {
       },
       `Server started: http://localhost:${config.port}`
     );
+    serverLogger.info("Socket.IO server is ready");
   });
 
   // Обработка ошибок сервера
@@ -41,6 +52,14 @@ const gracefulShutdown = async (signal) => {
   serverLogger.info({ signal }, "Received shutdown signal");
 
   if (server) {
+    // Закрываем Socket.IO соединения
+    if (io) {
+      io.close(() => {
+        serverLogger.info("Socket.IO connections closed");
+      });
+    }
+
+    // Закрываем HTTP сервер
     server.close(async () => {
       serverLogger.info("HTTP server closed");
 
