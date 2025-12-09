@@ -7,7 +7,7 @@ import Chat from './pages/Chat';
 import ProtectedRoute from './components/ProtectedRoute';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
-import './assets/css/App.css';
+import './styles/App.css';
 
 function App() {
   return (
