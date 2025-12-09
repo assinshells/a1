@@ -1,23 +1,30 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { authAPI } from '../services/api';
 
 import AuthForm from "../components/auth/AuthForm";
-import AuthInput from "../components/auth/AuthInput";
 import AuthPasswordInput from "../components/auth/AuthPasswordInput";
 import Button from "../components/common/Button";
 
-const Register = () => {
+const ResetPassword = () => {
+    const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
-        username: '',
-        email: '',
         password: '',
         confirmPassword: '',
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const { register } = useAuth();
-    const navigate = useNavigate();
+    const [token, setToken] = useState('');
+
+    useEffect(() => {
+        const tokenFromUrl = searchParams.get('token');
+        if (!tokenFromUrl) {
+            setError('Invalid reset link. Please request a new password reset.');
+        } else {
+            setToken(tokenFromUrl);
+        }
+    }, [searchParams]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -40,21 +47,40 @@ const Register = () => {
         setLoading(true);
 
         try {
-            await register(
-                formData.username,
-                formData.email || undefined, // Email опционален
-                formData.password
-            );
-            navigate('/chat');
+            await authAPI.resetPassword(token, formData.password);
+
+            // Показываем успешное сообщение
+            alert('Password reset successful! You can now log in with your new password.');
+            navigate('/login');
         } catch (err) {
-            setError(err.message || 'Registration failed');
+            setError(err.message || 'Failed to reset password. The link may have expired.');
         } finally {
             setLoading(false);
         }
     };
 
+    if (!token && !error) {
+        return (
+            <AuthForm>
+                <div className="text-center py-5">
+                    <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </AuthForm>
+        );
+    }
+
     return (
         <AuthForm>
+            <div className="text-center mb-4">
+                <i className="bi bi-shield-lock-fill text-primary fs-1 mb-3"></i>
+                <h4>Reset Password</h4>
+                <p className="text-muted small">
+                    Enter your new password
+                </p>
+            </div>
+
             {error && (
                 <div className="alert alert-danger">
                     <i className="bi bi-exclamation-circle me-2"></i>
@@ -63,34 +89,8 @@ const Register = () => {
             )}
 
             <form onSubmit={handleSubmit}>
-                <AuthInput
-                    label="Username"
-                    icon="bi bi-person"
-                    type="text"
-                    name="username"
-                    value={formData.username}
-                    onChange={handleChange}
-                    placeholder="username"
-                    minLength="3"
-                    required
-                />
-
-                <AuthInput
-                    label="Email (optional)"
-                    icon="bi bi-envelope"
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="your@email.com (optional)"
-                />
-
-                <small className="text-muted mb-3 d-block">
-                    Email is optional. If provided, you can use it for login and password recovery.
-                </small>
-
                 <AuthPasswordInput
-                    label="Password"
+                    label="New Password"
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
@@ -108,18 +108,20 @@ const Register = () => {
                     required
                 />
 
-                <Button loading={loading}>
-                    <i className="bi bi-person-plus me-2"></i>
-                    Sign Up
+                <Button loading={loading} disabled={!token}>
+                    <i className="bi bi-check-circle me-2"></i>
+                    Reset Password
                 </Button>
 
                 <div className="text-center">
-                    <span className="text-muted">Already have an account? </span>
-                    <Link to="/login">Log in</Link>
+                    <Link to="/login" className="text-decoration-none">
+                        <i className="bi bi-arrow-left me-1"></i>
+                        Back to Login
+                    </Link>
                 </div>
             </form>
         </AuthForm>
     );
 };
 
-export default Register;
+export default ResetPassword;

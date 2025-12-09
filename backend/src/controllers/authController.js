@@ -1,35 +1,49 @@
+import crypto from "crypto";
 import User from "../models/User.js";
 import { generateToken, generateRefreshToken } from "../utils/jwt.js";
 import { appLogger } from "../config/logger.js";
+import emailService from "../services/emailService.js";
 
 /**
  * Регистрация нового пользователя
+ * Email теперь опционален
  */
 export const register = async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
-    // Проверяем существование пользователя
-    const existingUser = await User.findOne({
-      $or: [{ email }, { username }],
-    });
-
-    if (existingUser) {
+    // Проверяем существование пользователя по username
+    const existingUserByUsername = await User.findOne({ username });
+    if (existingUserByUsername) {
       return res.status(409).json({
         success: false,
-        message:
-          existingUser.email === email
-            ? "Email already registered"
-            : "Username already taken",
+        message: "Username already taken",
       });
     }
 
+    // Если email указан, проверяем его уникальность
+    if (email && email.trim()) {
+      const existingUserByEmail = await User.findOne({ email: email.trim() });
+      if (existingUserByEmail) {
+        return res.status(409).json({
+          success: false,
+          message: "Email already registered",
+        });
+      }
+    }
+
     // Создаем пользователя
-    const user = await User.create({
+    const userData = {
       username,
-      email,
       password,
-    });
+    };
+
+    // Добавляем email только если он указан
+    if (email && email.trim()) {
+      userData.email = email.trim();
+    }
+
+    const user = await User.create(userData);
 
     // Генерируем токены
     const token = generateToken(user._id);
@@ -58,13 +72,26 @@ export const register = async (req, res) => {
 
 /**
  * Вход пользователя
+ * Можно войти используя username или email
  */
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { login, email, username, password } = req.body;
 
-    // Находим пользователя и включаем пароль
-    const user = await User.findOne({ email }).select("+password");
+    // Определяем идентификатор для поиска
+    const identifier = login || email || username;
+
+    if (!identifier) {
+      return res.status(400).json({
+        success: false,
+        message: "Username or email is required",
+      });
+    }
+
+    // Ищем пользователя по email или username
+    const user = await User.findOne({
+      $or: [{ email: identifier }, { username: identifier }],
+    }).select("+password");
 
     if (!user) {
       return res.status(401).json({
@@ -122,13 +149,125 @@ export const login = async (req, res) => {
 };
 
 /**
+ * Запрос на сброс пароля
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { identifier } = req.body;
+
+    // Ищем пользователя по email или username
+    const user = await User.findOne({
+      $or: [{ email: identifier }, { username: identifier }],
+    });
+
+    if (!user) {
+      // Из соображений безопасности возвращаем успех даже если пользователь не найден
+      return res.status(200).json({
+        success: true,
+        message: "If the account exists, a password reset link has been sent",
+      });
+    }
+
+    // Проверяем, есть ли у пользователя email
+    if (!user.email) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot reset password: no email associated with this account",
+      });
+    }
+
+    // Генерируем токен сброса
+    const resetToken = user.createPasswordResetToken();
+    await user.save({ validateBeforeSave: false });
+
+    // Отправляем email (в dev режиме - логируем)
+    try {
+      await emailService.sendPasswordResetEmail(user, resetToken);
+
+      appLogger.info(
+        { userId: user._id, email: user.email },
+        "Password reset requested"
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Password reset link has been sent to your email",
+      });
+    } catch (emailError) {
+      // Если не удалось отправить email, очищаем токен
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+
+      appLogger.error({ error: emailError }, "Failed to send reset email");
+
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send password reset email. Please try again later.",
+      });
+    }
+  } catch (error) {
+    appLogger.error({ error }, "Forgot password error");
+    res.status(500).json({
+      success: false,
+      message: "Failed to process password reset request",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Сброс пароля по токену
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    // Хешируем токен для поиска
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Ищем пользователя с валидным токеном
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    }).select("+resetPasswordToken +resetPasswordExpires");
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired reset token",
+      });
+    }
+
+    // Устанавливаем новый пароль
+    user.password = newPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    appLogger.info({ userId: user._id }, "Password reset successful");
+
+    res.status(200).json({
+      success: true,
+      message: "Password has been reset successfully",
+    });
+  } catch (error) {
+    appLogger.error({ error }, "Reset password error");
+    res.status(500).json({
+      success: false,
+      message: "Failed to reset password",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Выход пользователя
  */
 export const logout = async (req, res) => {
   try {
     const user = req.user;
 
-    // Обновляем статус
     user.status = "offline";
     user.lastSeen = new Date();
     await user.save();
@@ -181,9 +320,33 @@ export const updateProfile = async (req, res) => {
     const user = req.user;
     const updates = req.body;
 
+    // Проверяем уникальность username если он изменяется
+    if (updates.username && updates.username !== user.username) {
+      const existingUser = await User.findOne({ username: updates.username });
+      if (existingUser) {
+        return res.status(409).json({
+          success: false,
+          message: "Username already taken",
+        });
+      }
+    }
+
+    // Проверяем уникальность email если он изменяется
+    if (updates.email && updates.email !== user.email) {
+      const existingUser = await User.findOne({ email: updates.email });
+      if (existingUser) {
+        return res.status(409).json({
+          success: false,
+          message: "Email already registered",
+        });
+      }
+    }
+
     // Применяем обновления
     Object.keys(updates).forEach((key) => {
-      user[key] = updates[key];
+      if (key !== "password") {
+        user[key] = updates[key];
+      }
     });
 
     await user.save();
@@ -215,7 +378,6 @@ export const changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
     const user = await User.findById(req.user._id).select("+password");
 
-    // Проверяем текущий пароль
     const isPasswordValid = await user.comparePassword(currentPassword);
 
     if (!isPasswordValid) {
@@ -225,7 +387,6 @@ export const changePassword = async (req, res) => {
       });
     }
 
-    // Устанавливаем новый пароль
     user.password = newPassword;
     await user.save();
 
@@ -252,4 +413,6 @@ export default {
   getMe,
   updateProfile,
   changePassword,
+  forgotPassword,
+  resetPassword,
 };

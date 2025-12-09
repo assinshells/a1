@@ -7,23 +7,47 @@ import {
   loginSchema,
   updateProfileSchema,
   changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } from "../validation/schemas.js";
 
 const router = express.Router();
 
 /**
  * @route   POST /api/auth/register
- * @desc    Register new user
+ * @desc    Register new user (email is optional)
  * @access  Public
  */
 router.post("/register", validate(registerSchema), authController.register);
 
 /**
  * @route   POST /api/auth/login
- * @desc    Login user
+ * @desc    Login user (can use username or email)
  * @access  Public
  */
 router.post("/login", validate(loginSchema), authController.login);
+
+/**
+ * @route   POST /api/auth/forgot-password
+ * @desc    Request password reset
+ * @access  Public
+ */
+router.post(
+  "/forgot-password",
+  validate(forgotPasswordSchema),
+  authController.forgotPassword
+);
+
+/**
+ * @route   POST /api/auth/reset-password
+ * @desc    Reset password with token
+ * @access  Public
+ */
+router.post(
+  "/reset-password",
+  validate(resetPasswordSchema),
+  authController.resetPassword
+);
 
 /**
  * @route   POST /api/auth/logout

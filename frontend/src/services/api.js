@@ -22,21 +22,44 @@ async function fetchAPI(endpoint, options = {}) {
 }
 
 export const authAPI = {
+  // Регистрация (email опционален)
   register: (username, email, password) =>
     fetchAPI("/auth/register", {
       method: "POST",
       body: JSON.stringify({
         username,
-        email,
+        email: email || undefined, // Не отправляем пустую строку
         password,
         confirmPassword: password,
       }),
     }),
 
-  login: (email, password) =>
+  // Вход (можно использовать username или email)
+  login: (identifier, password) =>
     fetchAPI("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        login: identifier,
+        password,
+      }),
+    }),
+
+  // Запрос на сброс пароля
+  forgotPassword: (identifier) =>
+    fetchAPI("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ identifier }),
+    }),
+
+  // Сброс пароля
+  resetPassword: (token, newPassword) =>
+    fetchAPI("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({
+        token,
+        newPassword,
+        confirmPassword: newPassword,
+      }),
     }),
 
   logout: (token) =>

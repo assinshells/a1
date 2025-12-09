@@ -8,7 +8,7 @@ import AuthPasswordInput from "../components/auth/AuthPasswordInput";
 import Button from "../components/common/Button";
 
 const Login = () => {
-    const [formData, setFormData] = useState({ email: '', password: '' });
+    const [formData, setFormData] = useState({ identifier: '', password: '' });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
@@ -24,10 +24,10 @@ const Login = () => {
         setLoading(true);
 
         try {
-            await login(formData.email, formData.password);
+            await login(formData.identifier, formData.password);
             navigate('/chat');
         } catch (err) {
-            setError(err.message || 'Ошибка входа');
+            setError(err.message || 'Login failed');
         } finally {
             setLoading(false);
         }
@@ -44,12 +44,12 @@ const Login = () => {
 
             <form onSubmit={handleSubmit}>
                 <AuthInput
-                    label="Email"
-                    type="email"
-                    name="email"
-                    value={formData.email}
+                    label="Username or Email"
+                    type="text"
+                    name="identifier"
+                    value={formData.identifier}
                     onChange={handleChange}
-                    placeholder="Email address or phone number"
+                    placeholder="Username or email address"
                     required
                 />
 
@@ -64,13 +64,15 @@ const Login = () => {
 
                 <Button loading={loading}>
                     <i className="bi bi-box-arrow-in-right me-2"></i>
-                    Войти
+                    Log In
                 </Button>
+
                 <div className="text-center mb-3">
-                    <a href="/" className="text-decoration-none">
-                        Forgotten password?
-                    </a>
+                    <Link to="/forgot-password" className="text-decoration-none">
+                        Forgot password?
+                    </Link>
                 </div>
+
                 <hr />
 
                 <div className="d-grid">

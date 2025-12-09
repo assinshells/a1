@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 const userSchema = new mongoose.Schema(
   {
@@ -13,8 +14,8 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: [true, "Email is required"],
       unique: true,
+      sparse: true, // Позволяет множественные null значения
       lowercase: true,
       trim: true,
       match: [
@@ -26,7 +27,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, "Password is required"],
       minlength: [6, "Password must be at least 6 characters"],
-      select: false, // Не возвращать пароль по умолчанию
+      select: false,
     },
     avatar: {
       type: String,
@@ -45,15 +46,26 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      select: false,
+    },
   },
   {
     timestamps: true,
   }
 );
 
+// Индексы
+userSchema.index({ username: 1 });
+userSchema.index({ email: 1 });
+
 // Хеширование пароля перед сохранением
 userSchema.pre("save", async function (next) {
-  // Только если пароль был изменен
   if (!this.isModified("password")) return next();
 
   try {
@@ -70,7 +82,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Метод для получения публичной информации о пользователе
+// Метод для получения публичной информации
 userSchema.methods.toPublicJSON = function () {
   return {
     id: this._id,
@@ -83,9 +95,19 @@ userSchema.methods.toPublicJSON = function () {
   };
 };
 
-// Индексы для оптимизации запросов
-userSchema.index({ username: 1 });
-userSchema.index({ email: 1 });
+// Метод для генерации токена сброса пароля
+userSchema.methods.createPasswordResetToken = function () {
+  const resetToken = crypto.randomBytes(32).toString("hex");
+
+  this.resetPasswordToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  this.resetPasswordExpires = Date.now() + 30 * 60 * 1000; // 30 минут
+
+  return resetToken;
+};
 
 const User = mongoose.model("User", userSchema);
 
