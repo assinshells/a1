@@ -1,21 +1,39 @@
-const AuthForm = ({ icon, title, subtitle, children }) => (
-    <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
-        <div className="container">
-            <div className="row justify-content-center">
-                <div className="col-md-6 col-lg-5">
-                    <div className="card shadow-lg border-0">
-                        <div className="card-body p-5">
-                            <div className="text-center mb-4">
-                                <i className={`${icon} text-primary`} style={{ fontSize: '3rem' }}></i>
-                                <h2 className="mt-3 mb-2">{title}</h2>
-                                <p className="text-muted">{subtitle}</p>
-                            </div>
+const AuthForm = ({ children }) => (
+    <div className="container py-5">
+        <div className="min-vh-100 row justify-content-center align-items-center">
 
-                            {children}
-                        </div>
-                    </div>
-                </div>
+            <div className="col-md-6 mb-4 d-none d-md-block">
+                <img
+                    src="images/fb_logo.svg"
+                    className="img-fluid mb-3"
+                    style={{ maxWidth: "300px" }}
+                    alt="Logo"
+                />
+                <h2
+                    className="fw-normal px-3"
+                    style={{ fontSize: "26px", lineHeight: "32px" }}
+                >
+                    Facebook helps you connect and share with the people
+                    in your life.
+                </h2>
             </div>
+
+
+            <div className="col-md-4">
+                <div className="card shadow-sm p-4 mb-3">
+                    {children}
+                </div>
+                <p className="text-center" style={{ fontSize: "14px" }}>
+                    <a
+                        href="/"
+                        className="fw-bold text-dark text-decoration-none"
+                    >
+                        Create a Page
+                    </a>{" "}
+                    for a celebrity, brand or business.
+                </p>
+            </div>
+
         </div>
     </div>
 );

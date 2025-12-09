@@ -34,11 +34,7 @@ const Login = () => {
     };
 
     return (
-        <AuthForm
-            icon="bi bi-chat-dots-fill"
-            title="Добро пожаловать"
-            subtitle="Войдите в свой аккаунт"
-        >
+        <AuthForm>
             {error && (
                 <div className="alert alert-danger">
                     <i className="bi bi-exclamation-circle me-2"></i>
@@ -49,21 +45,20 @@ const Login = () => {
             <form onSubmit={handleSubmit}>
                 <AuthInput
                     label="Email"
-                    icon="bi bi-envelope"
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    placeholder="your@email.com"
+                    placeholder="Email address or phone number"
                     required
                 />
 
                 <AuthPasswordInput
-                    label="Пароль"
+                    label="Password"
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder="••••••••"
+                    placeholder="Password"
                     required
                 />
 
@@ -71,10 +66,17 @@ const Login = () => {
                     <i className="bi bi-box-arrow-in-right me-2"></i>
                     Войти
                 </Button>
+                <div className="text-center mb-3">
+                    <a href="/" className="text-decoration-none">
+                        Forgotten password?
+                    </a>
+                </div>
+                <hr />
 
-                <div className="text-center">
-                    <span className="text-muted">Нет аккаунта? </span>
-                    <Link to="/register">Зарегистрироваться</Link>
+                <div className="d-grid">
+                    <Link to="/register" className="btn btn-success">
+                        Create new Account
+                    </Link>
                 </div>
             </form>
         </AuthForm>
