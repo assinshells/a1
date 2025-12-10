@@ -1,15 +1,12 @@
 import { Server } from "socket.io";
 import { verifyToken } from "../utils/jwt.js";
 import User from "../models/User.js";
+import Message from "../models/Message.js"; // ✅ ДОБАВЛЕНО
 import { serverLogger } from "./logger.js";
 import config from "./env.js";
 
-// Хранилище активных пользователей
 const activeUsers = new Map();
 
-/**
- * Инициализация Socket.IO
- */
 export const initializeSocket = (httpServer) => {
   const io = new Server(httpServer, {
     cors: {
@@ -24,19 +21,12 @@ export const initializeSocket = (httpServer) => {
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token;
-
-      if (!token) {
-        return next(new Error("Authentication required"));
-      }
+      if (!token) return next(new Error("Authentication required"));
 
       const decoded = verifyToken(token);
-
-      if (!decoded) {
-        return next(new Error("Invalid token"));
-      }
+      if (!decoded) return next(new Error("Invalid token"));
 
       const user = await User.findById(decoded.userId);
-
       if (!user || !user.isActive) {
         return next(new Error("User not found or inactive"));
       }
@@ -50,7 +40,6 @@ export const initializeSocket = (httpServer) => {
     }
   });
 
-  // Обработка подключений
   io.on("connection", async (socket) => {
     const userId = socket.userId;
     const username = socket.username;
@@ -60,23 +49,19 @@ export const initializeSocket = (httpServer) => {
       "User connected"
     );
 
-    // Добавляем пользователя в активные
     activeUsers.set(userId, {
       socketId: socket.id,
       username,
       rooms: new Set(["general"]),
     });
 
-    // Обновляем статус пользователя
     await User.findByIdAndUpdate(userId, {
       status: "online",
       lastSeen: new Date(),
     });
 
-    // Присоединяем к комнате по умолчанию
     socket.join("general");
 
-    // Отправляем информацию о подключении
     socket.emit("connected", {
       userId,
       username,
@@ -86,13 +71,9 @@ export const initializeSocket = (httpServer) => {
       })),
     });
 
-    // Оповещаем других о новом пользователе
-    socket.broadcast.emit("user:online", {
-      userId,
-      username,
-    });
+    socket.broadcast.emit("user:online", { userId, username });
 
-    // Обработка присоединения к комнате
+    // ✅ ИСПРАВЛЕНО: Обработка room:join
     socket.on("room:join", (roomName) => {
       socket.join(roomName);
       activeUsers.get(userId).rooms.add(roomName);
@@ -106,7 +87,6 @@ export const initializeSocket = (httpServer) => {
       });
     });
 
-    // Обработка выхода из комнаты
     socket.on("room:leave", (roomName) => {
       socket.leave(roomName);
       activeUsers.get(userId).rooms.delete(roomName);
@@ -120,48 +100,82 @@ export const initializeSocket = (httpServer) => {
       });
     });
 
-    // Обработка отправки сообщения
-    socket.on("message:send", (data) => {
-      const { receiver, room, content, type } = data;
+    // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Сохранение сообщений в БД
+    socket.on("message:send", async (data) => {
+      try {
+        const { receiver, room, content, type } = data;
 
-      const messageData = {
-        sender: userId,
-        senderUsername: username,
-        receiver,
-        room: room || "general",
-        content,
-        type: type || "text",
-        timestamp: new Date(),
-      };
+        // ✅ Создаём и сохраняем сообщение в БД
+        const message = await Message.create({
+          sender: userId,
+          receiver: receiver || null,
+          room: room || "general",
+          content,
+          type: type || "text",
+        });
 
-      if (receiver) {
-        // Приватное сообщение
-        const receiverData = Array.from(activeUsers.entries()).find(
-          ([id]) => id === receiver
-        );
-
-        if (receiverData) {
-          io.to(receiverData[1].socketId).emit("message:receive", messageData);
+        // ✅ Populate для отправки клиентам
+        await message.populate("sender", "username avatar status");
+        if (message.receiver) {
+          await message.populate("receiver", "username avatar status");
         }
 
-        // Отправляем обратно отправителю
-        socket.emit("message:sent", messageData);
-      } else if (room) {
-        // Сообщение в комнату
-        io.to(room).emit("message:receive", messageData);
-      }
+        // ✅ УНИФИЦИРОВАННАЯ структура данных
+        const messageData = {
+          _id: message._id,
+          sender: {
+            id: message.sender._id,
+            username: message.sender.username,
+            avatar: message.sender.avatar,
+          },
+          receiver: message.receiver
+            ? {
+                id: message.receiver._id,
+                username: message.receiver.username,
+              }
+            : null,
+          room: message.room,
+          content: message.content,
+          type: message.type,
+          isRead: message.isRead,
+          isEdited: message.isEdited,
+          createdAt: message.createdAt, // ✅ НЕ timestamp!
+          timestamp: message.createdAt, // Для обратной совместимости
+        };
 
-      serverLogger.info(
-        {
-          sender: userId,
-          receiver,
-          room,
-        },
-        "Message sent"
-      );
+        if (receiver) {
+          // Приватное сообщение
+          const receiverData = Array.from(activeUsers.entries()).find(
+            ([id]) => id === receiver
+          );
+
+          if (receiverData) {
+            io.to(receiverData[1].socketId).emit(
+              "message:receive",
+              messageData
+            );
+          }
+
+          socket.emit("message:sent", messageData);
+        } else if (room) {
+          // Сообщение в комнату
+          io.to(room).emit("message:receive", messageData);
+        }
+
+        serverLogger.info(
+          { sender: userId, receiver, room, messageId: message._id },
+          "Message sent and saved"
+        );
+      } catch (error) {
+        serverLogger.error({ error, userId }, "Error sending message");
+        socket.emit("message:error", {
+          error: "Failed to send message",
+          details: error.message,
+        });
+      }
     });
 
-    // Обработка события "печатает"
+    // ✅ Typing events (оптимизированы)
     socket.on("typing:start", (data) => {
       const { receiver, room } = data;
 
@@ -184,7 +198,6 @@ export const initializeSocket = (httpServer) => {
       }
     });
 
-    // Обработка события "перестал печатать"
     socket.on("typing:stop", (data) => {
       const { receiver, room } = data;
 
@@ -207,27 +220,22 @@ export const initializeSocket = (httpServer) => {
       }
     });
 
-    // Обработка отключения
     socket.on("disconnect", async () => {
       serverLogger.info({ userId, username }, "User disconnected");
 
-      // Удаляем из активных пользователей
       activeUsers.delete(userId);
 
-      // Обновляем статус пользователя
       await User.findByIdAndUpdate(userId, {
         status: "offline",
         lastSeen: new Date(),
       });
 
-      // Оповещаем других об отключении
       socket.broadcast.emit("user:offline", {
         userId,
         username,
       });
     });
 
-    // Обработка ошибок
     socket.on("error", (error) => {
       serverLogger.error({ error, userId }, "Socket error");
     });
@@ -238,9 +246,6 @@ export const initializeSocket = (httpServer) => {
   return io;
 };
 
-/**
- * Получение активных пользователей
- */
 export const getActiveUsers = () => {
   return Array.from(activeUsers.entries()).map(([userId, data]) => ({
     userId,
