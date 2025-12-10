@@ -14,14 +14,17 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      unique: true,
-      sparse: true, // Позволяет множественные null значения
+      // ✅ ИСПРАВЛЕНО: убрали unique отсюда, оставили только в schema.index()
+      sparse: true,
       lowercase: true,
       trim: true,
-      match: [
-        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-        "Please provide a valid email",
-      ],
+      validate: {
+        validator: function (v) {
+          if (!v || v === "") return true;
+          return /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,})+$/.test(v);
+        },
+        message: "Please provide a valid email",
+      },
     },
     password: {
       type: String,
@@ -60,26 +63,29 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Индексы
-userSchema.index({ username: 1 });
-userSchema.index({ email: 1 });
+// ✅ ИСПРАВЛЕНО: Индексы объявлены только один раз
+userSchema.index({ username: 1 }, { unique: true });
+userSchema.index({ email: 1 }, { unique: true, sparse: true });
 
-// Хеширование пароля перед сохранением
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+// Mongoose 9.x async hook (без next)
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
 
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
+  if (!this.password) {
+    throw new Error("Password is required");
   }
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
 });
 
 // Метод для сравнения паролей
 userSchema.methods.comparePassword = async function (candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    throw new Error("Password comparison failed");
+  }
 };
 
 // Метод для получения публичной информации

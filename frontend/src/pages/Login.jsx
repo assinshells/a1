@@ -6,6 +6,7 @@ import AuthForm from "../components/auth/AuthForm";
 import AuthInput from "../components/auth/AuthInput";
 import AuthPasswordInput from "../components/auth/AuthPasswordInput";
 import Button from "../components/common/Button";
+import Logo from "../components/common/Logo";
 
 const Login = () => {
     const [formData, setFormData] = useState({ identifier: '', password: '' });
@@ -35,9 +36,9 @@ const Login = () => {
 
     return (
         <AuthForm>
+            <Logo />
             {error && (
                 <div className="alert alert-danger">
-                    <i className="bi bi-exclamation-circle me-2"></i>
                     {error}
                 </div>
             )}
@@ -63,20 +64,15 @@ const Login = () => {
                 />
 
                 <Button loading={loading}>
-                    <i className="bi bi-box-arrow-in-right me-2"></i>
                     Log In
                 </Button>
 
-                <div className="text-center mb-3">
+
+                <div className="d-flex justify-content-between">
                     <Link to="/forgot-password" className="text-decoration-none">
                         Forgot password?
                     </Link>
-                </div>
-
-                <hr />
-
-                <div className="d-grid">
-                    <Link to="/register" className="btn btn-success">
+                    <Link to="/register" className="text-decoration-none">
                         Create new Account
                     </Link>
                 </div>

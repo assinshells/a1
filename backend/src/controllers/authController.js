@@ -12,6 +12,20 @@ export const register = async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
+    // ✅ ДОБАВЛЕНО: Детальное логирование
+    appLogger.info(
+      { username, email: email ? "provided" : "empty" },
+      "Registration attempt"
+    );
+
+    // ✅ ДОБАВЛЕНО: Валидация пароля
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
+      });
+    }
+
     // Проверяем существование пользователя по username
     const existingUserByUsername = await User.findOne({ username });
     if (existingUserByUsername) {
@@ -32,24 +46,39 @@ export const register = async (req, res) => {
       }
     }
 
-    // Создаем пользователя
+    // ✅ ИСПРАВЛЕНО: Более надёжное создание userData
     const userData = {
-      username,
-      password,
+      username: username.trim(),
+      password: password, // Хеширование произойдёт в pre-save hook
     };
 
-    // Добавляем email только если он указан
+    // Добавляем email только если он указан и не пустой
     if (email && email.trim()) {
-      userData.email = email.trim();
+      userData.email = email.trim().toLowerCase();
     }
 
+    // ✅ ДОБАВЛЕНО: Проверка перед созданием
+    appLogger.debug(
+      { userData: { ...userData, password: "[HIDDEN]" } },
+      "Creating user"
+    );
+
+    // Создаем пользователя
     const user = await User.create(userData);
+
+    // ✅ ДОБАВЛЕНО: Проверка успешного создания
+    if (!user) {
+      throw new Error("User creation failed");
+    }
 
     // Генерируем токены
     const token = generateToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
 
-    appLogger.info({ userId: user._id, username }, "User registered");
+    appLogger.info(
+      { userId: user._id, username },
+      "User registered successfully"
+    );
 
     res.status(201).json({
       success: true,
@@ -61,11 +90,42 @@ export const register = async (req, res) => {
       },
     });
   } catch (error) {
-    appLogger.error({ error }, "Registration error");
+    // ✅ УЛУЧШЕНО: Более детальное логирование ошибок
+    appLogger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        name: error.name,
+        code: error.code,
+      },
+      "Registration error"
+    );
+
+    // ✅ ДОБАВЛЕНО: Обработка специфичных ошибок Mongoose
+    if (error.name === "ValidationError") {
+      const messages = Object.values(error.errors).map((err) => err.message);
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        errors: messages,
+      });
+    }
+
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(409).json({
+        success: false,
+        message: `${field} already exists`,
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: "Registration failed",
-      error: error.message,
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };
@@ -85,6 +145,13 @@ export const login = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Username or email is required",
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: "Password is required",
       });
     }
 
