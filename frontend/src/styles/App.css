@@ -27,9 +27,14 @@ body {
   color: white;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
-}
+  border-left: 1px solid rgba(255, 255, 255, 0.1); /* меняем border-right на border-left */
 
+  position: fixed; /* фиксируем сайдбар */
+  top: 0;
+  right: 0; /* располагаем справа */
+  height: 100vh; /* на всю высоту экрана */
+  z-index: 1000; /* чтобы быть поверх контента */
+}
 .sidebar-header {
   padding: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);

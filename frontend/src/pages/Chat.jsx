@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { messageAPI } from '../services/api';
+import LeftSidebar from '../components/LeftSidebar';
 import ChatSidebar from '../components/ChatSidebar';
 import MessageList from '../components/MessageList';
 import MessageInput from '../components/MessageInput';
@@ -87,6 +88,7 @@ const Chat = () => {
 
     return (
         <div className="chat-container">
+            <LeftSidebar handleLogout={handleLogout} />
             <ChatSidebar currentRoom={currentRoom} onRoomChange={handleRoomChange} />
 
             <div className="chat-main">
