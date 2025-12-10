@@ -1,3 +1,4 @@
+// backend/src/controllers/messageController.js
 import Message from "../models/Message.js";
 import { appLogger } from "../config/logger.js";
 
@@ -54,8 +55,21 @@ export const createMessage = async (req, res) => {
  */
 export const getMessages = async (req, res) => {
   try {
-    const { targetId, room, limit = 50, skip = 0 } = req.query;
+    // ✅ ИСПРАВЛЕНО: Используем validatedQuery вместо query
+    const params = req.validatedQuery || req.query;
+    const { targetId, room, limit = 50, skip = 0 } = params;
     const userId = req.user._id;
+
+    appLogger.info(
+      {
+        userId,
+        targetId,
+        room,
+        limit,
+        skip,
+      },
+      "Fetching messages"
+    );
 
     let messages;
 
@@ -77,6 +91,15 @@ export const getMessages = async (req, res) => {
         .populate("sender", "username avatar status")
         .populate("receiver", "username avatar status");
     }
+
+    appLogger.info(
+      {
+        userId,
+        room,
+        messagesCount: messages.length,
+      },
+      "Messages fetched successfully"
+    );
 
     res.status(200).json({
       success: true,

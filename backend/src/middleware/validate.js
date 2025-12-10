@@ -1,3 +1,4 @@
+// backend/src/middleware/validate.js
 import { appLogger } from "../config/logger.js";
 
 /**
@@ -36,8 +37,26 @@ export const validate = (schema, source = "body") => {
       });
     }
 
-    // Заменяем данные на валидированные и очищенные
-    req[source] = value;
+    // ✅ ИСПРАВЛЕНО: Специальная обработка для req.query (readonly в Express 5.x)
+    if (source === "query") {
+      // Вместо перезаписи req.query, создаём новое свойство
+      req.validatedQuery = value;
+
+      // Опционально: логируем предупреждение если данные были изменены
+      if (JSON.stringify(dataToValidate) !== JSON.stringify(value)) {
+        appLogger.debug(
+          {
+            original: dataToValidate,
+            validated: value,
+          },
+          "Query parameters were sanitized"
+        );
+      }
+    } else {
+      // ✅ Для body и params работает как раньше
+      req[source] = value;
+    }
+
     next();
   };
 };

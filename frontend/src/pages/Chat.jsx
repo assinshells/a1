@@ -1,3 +1,4 @@
+// frontend/src/pages/Chat.jsx
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
@@ -19,84 +20,117 @@ const Chat = () => {
     const navigate = useNavigate();
     const messagesEndRef = useRef(null);
 
-    // ✅ ИСПРАВЛЕНО: loadMessages зависит от currentRoom и token
-    const loadMessages = useCallback(async () => {
-        if (!token || !currentRoom) return;
+    // ✅ ДОБАВЛЕНО: Ref для отслеживания отмены загрузки
+    const loadingAbortRef = useRef(null);
+
+    // ✅ ИСПРАВЛЕНО: loadMessages с поддержкой отмены
+    const loadMessages = useCallback(async (room, abortSignal) => {
+        if (!token || !room) return;
 
         try {
             setLoading(true);
-            console.log(`📥 Loading messages for room: ${currentRoom}`);
+            console.log(`📥 Loading messages for room: ${room}`);
 
             const data = await messageAPI.getMessages(
-                { room: currentRoom, limit: 50 },
+                { room, limit: 50 },
                 token
             );
 
-            console.log(`✅ Loaded ${data.messages?.length || 0} messages`, data.messages);
+            // ✅ Проверяем отмену
+            if (abortSignal?.aborted) {
+                console.log('⚠️ Load cancelled for room:', room);
+                return;
+            }
+
+            console.log(`✅ Loaded ${data.messages?.length || 0} messages`);
             setMessages(data.messages || []);
         } catch (error) {
-            console.error('❌ Error loading messages:', error);
-            setMessages([]); // ✅ Очищаем при ошибке
-        } finally {
-            setLoading(false);
-        }
-    }, [currentRoom, token]); // ✅ ДОБАВЛЕНЫ зависимости
+            if (error.name === 'AbortError') return;
 
-    // ✅ ИСПРАВЛЕНО: Загрузка при смене комнаты
+            console.error('❌ Error loading messages:', error);
+            setMessages([]);
+        } finally {
+            if (!abortSignal?.aborted) {
+                setLoading(false);
+            }
+        }
+    }, [token]);
+
+    // ✅ ИСПРАВЛЕНО: Загрузка при смене комнаты с отменой предыдущих
     useEffect(() => {
-        loadMessages();
-    }, [loadMessages]); // ✅ Теперь loadMessages в зависимостях
+        // Отменяем предыдущую загрузку
+        if (loadingAbortRef.current) {
+            loadingAbortRef.current.abort();
+        }
+
+        // Создаём новый AbortController
+        const abortController = new AbortController();
+        loadingAbortRef.current = abortController;
+
+        // Очищаем старые сообщения сразу
+        setMessages([]);
+        setTypingUsers([]);
+
+        // Загружаем новые
+        loadMessages(currentRoom, abortController.signal);
+
+        return () => {
+            abortController.abort();
+        };
+    }, [currentRoom, loadMessages]);
 
     // ✅ ИСПРАВЛЕНО: Мемоизированные обработчики Socket
     const handleNewMessage = useCallback((message) => {
         console.log('📨 New message received:', message);
 
+        // ✅ Проверяем соответствие комнате
+        if (message.room !== currentRoom) {
+            console.log('⚠️ Message for different room, ignoring');
+            return;
+        }
+
         setMessages((prev) => {
             // ✅ Проверяем дубликаты по _id
-            const exists = prev.some(m => m._id === message._id);
-            if (exists) {
+            if (message._id && prev.some(m => m._id === message._id)) {
                 console.log('⚠️ Duplicate message ignored');
                 return prev;
             }
             return [...prev, message];
         });
-    }, []); // ✅ Нет зависимостей - стабильная функция
+    }, [currentRoom]); // ✅ ДОБАВЛЕНО: currentRoom в зависимостях
 
     const handleTyping = useCallback((data) => {
         if (data.userId !== user?.id && data.userId !== user?._id) {
             setTypingUsers((prev) => {
-                // ✅ Проверяем дубликаты
                 if (prev.some(u => u.userId === data.userId)) {
                     return prev;
                 }
                 return [...prev, data];
             });
 
-            // ✅ Авто-удаление через 3 секунды
             setTimeout(() => {
                 setTypingUsers((prev) =>
                     prev.filter((u) => u.userId !== data.userId)
                 );
             }, 3000);
         }
-    }, [user]); // ✅ ДОБАВЛЕНО: user в зависимостях
+    }, [user]);
 
     const handleStopTyping = useCallback((data) => {
         setTypingUsers((prev) => prev.filter((u) => u.userId !== data.userId));
     }, []);
 
-    // ✅ ИСПРАВЛЕНО: Правильная подписка на события Socket
+    // ✅ ИСПРАВЛЕНО: Подписка на Socket события
     useEffect(() => {
         if (!socket) return;
 
         console.log('🔌 Subscribing to socket events');
 
         socket.on('message:receive', handleNewMessage);
-        socket.on('message:sent', handleNewMessage); // ✅ Для отправителя
+        socket.on('message:sent', handleNewMessage);
         socket.on('typing:user', handleTyping);
         socket.on('typing:stop', handleStopTyping);
 
-        // ✅ Обработка ошибок
         socket.on('message:error', (error) => {
             console.error('❌ Socket message error:', error);
             alert(`Failed to send message: ${error.details || error.error}`);
@@ -111,45 +145,38 @@ const Chat = () => {
             socket.off('message:error');
         };
     }, [socket, handleNewMessage, handleTyping, handleStopTyping]);
-    // ✅ ВСЕ обработчики в зависимостях
 
     // ✅ ИСПРАВЛЕНО: Автоскролл
     useEffect(() => {
-        scrollToBottom();
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // ✅ УПРОЩЕНО: Отправка только через Socket (БД обрабатывает сервер)
+    // ✅ УПРОЩЕНО: Отправка только через Socket
     const handleSendMessage = useCallback((content) => {
         if (!content.trim()) return;
 
         console.log(`📤 Sending message to room: ${currentRoom}`);
 
-        const messageData = {
+        sendMessage({
             room: currentRoom,
             content: content.trim(),
             type: 'text',
-        };
+        });
+    }, [currentRoom, sendMessage]);
 
-        sendMessage(messageData);
-    }, [currentRoom, sendMessage]); // ✅ ДОБАВЛЕНЫ зависимости
-
-    // ✅ ИСПРАВЛЕНО: Смена комнаты с очисткой состояния
+    // ✅ ИСПРАВЛЕНО: Смена комнаты
     const handleRoomChange = useCallback((room) => {
+        if (room === currentRoom) return; // Игнорируем если та же комната
+
         console.log(`🚪 Changing room from ${currentRoom} to ${room}`);
 
         setCurrentRoom(room);
-        setMessages([]); // ✅ Очищаем старые сообщения
-        setTypingUsers([]); // ✅ Очищаем typing
         joinRoom(room);
     }, [currentRoom, joinRoom]);
 
     const handleLogout = async () => {
         await logout();
         navigate('/login');
-    };
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
     return (

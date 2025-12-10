@@ -1,9 +1,19 @@
-import { memo } from 'react'; // ✅ ОПТИМИЗАЦИЯ
+// frontend/src/components/MessageList.jsx
+import { memo } from 'react';
 import { formatDistanceToNow } from '../utils/dateUtils';
 
 const MessageList = memo(({ messages, currentUser }) => {
-    const formatTime = (date) => {
-        return formatDistanceToNow(new Date(date));
+    // ✅ ИСПРАВЛЕНО: Единый источник истины для времени
+    const formatTime = (dateString) => {
+        if (!dateString) return 'недавно';
+
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return 'недавно';
+            return formatDistanceToNow(date);
+        } catch {
+            return 'недавно';
+        }
     };
 
     // ✅ ИСПРАВЛЕНО: Унифицированная проверка отправителя
@@ -11,18 +21,17 @@ const MessageList = memo(({ messages, currentUser }) => {
         const currentUserId = currentUser?.id || currentUser?._id;
         const senderId = message.sender?.id || message.sender?._id || message.sender;
 
-        return currentUserId && senderId &&
-            currentUserId.toString() === senderId.toString();
+        if (!currentUserId || !senderId) return false;
+
+        return currentUserId.toString() === senderId.toString();
     };
 
     // ✅ ИСПРАВЛЕНО: Безопасное получение username
     const getSenderUsername = (message) => {
-        return message.sender?.username ||
-            message.senderUsername ||
-            'Anonymous';
+        return message.sender?.username || 'Anonymous';
     };
 
-    if (messages.length === 0) {
+    if (!messages || messages.length === 0) {
         return (
             <div className="empty-messages">
                 <i className="bi bi-chat-dots text-muted" style={{ fontSize: '4rem' }}></i>
@@ -35,8 +44,8 @@ const MessageList = memo(({ messages, currentUser }) => {
     return (
         <div className="message-list">
             {messages.map((message, index) => {
-                // ✅ ИСПРАВЛЕНО: Уникальный key (предпочтение _id)
-                const messageKey = message._id || `msg-${index}-${message.timestamp}`;
+                // ✅ ИСПРАВЛЕНО: Приоритет _id, затем комбинация
+                const messageKey = message._id || `msg-${index}-${Date.now()}`;
                 const isOwn = isOwnMessage(message);
 
                 return (
@@ -74,11 +83,8 @@ const MessageList = memo(({ messages, currentUser }) => {
                             </div>
 
                             <div className="message-time">
-                                {formatTime(
-                                    message.createdAt ||
-                                    message.timestamp ||
-                                    new Date()
-                                )}
+                                {/* ✅ ТОЛЬКО createdAt */}
+                                {formatTime(message.createdAt)}
                             </div>
                         </div>
                     </div>
@@ -88,6 +94,6 @@ const MessageList = memo(({ messages, currentUser }) => {
     );
 });
 
-MessageList.displayName = 'MessageList'; // ✅ Для React DevTools
+MessageList.displayName = 'MessageList';
 
 export default MessageList;

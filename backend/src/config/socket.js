@@ -1,7 +1,8 @@
+// backend/src/config/socket.js
 import { Server } from "socket.io";
 import { verifyToken } from "../utils/jwt.js";
 import User from "../models/User.js";
-import Message from "../models/Message.js"; // ✅ ДОБАВЛЕНО
+import Message from "../models/Message.js";
 import { serverLogger } from "./logger.js";
 import config from "./env.js";
 
@@ -73,10 +74,18 @@ export const initializeSocket = (httpServer) => {
 
     socket.broadcast.emit("user:online", { userId, username });
 
-    // ✅ ИСПРАВЛЕНО: Обработка room:join
+    // ✅ ИСПРАВЛЕНО: room:join теперь корректно обрабатывает строки
     socket.on("room:join", (roomName) => {
+      if (typeof roomName !== "string" || !roomName.trim()) {
+        serverLogger.warn({ userId, roomName }, "Invalid room name");
+        return;
+      }
+
       socket.join(roomName);
-      activeUsers.get(userId).rooms.add(roomName);
+      const userData = activeUsers.get(userId);
+      if (userData) {
+        userData.rooms.add(roomName);
+      }
 
       serverLogger.info({ userId, roomName }, "User joined room");
 
@@ -89,7 +98,10 @@ export const initializeSocket = (httpServer) => {
 
     socket.on("room:leave", (roomName) => {
       socket.leave(roomName);
-      activeUsers.get(userId).rooms.delete(roomName);
+      const userData = activeUsers.get(userId);
+      if (userData) {
+        userData.rooms.delete(roomName);
+      }
 
       serverLogger.info({ userId, roomName }, "User left room");
 
@@ -100,17 +112,25 @@ export const initializeSocket = (httpServer) => {
       });
     });
 
-    // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Сохранение сообщений в БД
+    // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Унифицированная структура сообщения
     socket.on("message:send", async (data) => {
       try {
         const { receiver, room, content, type } = data;
+
+        // Валидация
+        if (!content || !content.trim()) {
+          socket.emit("message:error", {
+            error: "Message content is required",
+          });
+          return;
+        }
 
         // ✅ Создаём и сохраняем сообщение в БД
         const message = await Message.create({
           sender: userId,
           receiver: receiver || null,
           room: room || "general",
-          content,
+          content: content.trim(),
           type: type || "text",
         });
 
@@ -120,17 +140,18 @@ export const initializeSocket = (httpServer) => {
           await message.populate("receiver", "username avatar status");
         }
 
-        // ✅ УНИФИЦИРОВАННАЯ структура данных
+        // ✅ УНИФИЦИРОВАННАЯ структура (БЕЗ timestamp, ТОЛЬКО createdAt)
         const messageData = {
-          _id: message._id,
+          _id: message._id.toString(),
           sender: {
-            id: message.sender._id,
+            id: message.sender._id.toString(),
             username: message.sender.username,
             avatar: message.sender.avatar,
+            status: message.sender.status,
           },
           receiver: message.receiver
             ? {
-                id: message.receiver._id,
+                id: message.receiver._id.toString(),
                 username: message.receiver.username,
               }
             : null,
@@ -139,8 +160,7 @@ export const initializeSocket = (httpServer) => {
           type: message.type,
           isRead: message.isRead,
           isEdited: message.isEdited,
-          createdAt: message.createdAt, // ✅ НЕ timestamp!
-          timestamp: message.createdAt, // Для обратной совместимости
+          createdAt: message.createdAt.toISOString(), // ✅ ISO формат
         };
 
         if (receiver) {
@@ -158,7 +178,7 @@ export const initializeSocket = (httpServer) => {
 
           socket.emit("message:sent", messageData);
         } else if (room) {
-          // Сообщение в комнату
+          // Сообщение в комнату (включая отправителя)
           io.to(room).emit("message:receive", messageData);
         }
 
