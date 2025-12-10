@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import Logo from "../components/common/Logo";
-//import SettingsModal from "../chat/SettingsModal";
+import SettingsModal from "./modals/SettingsModal";
 
 export default function LeftSidebar({ handleLogout }) {
     const [showSettings, setShowSettings] = useState(false);
@@ -102,12 +102,10 @@ export default function LeftSidebar({ handleLogout }) {
             </div>
 
             {/* Settings Modal */}
-            {/*<SettingsModal
+            <SettingsModal
                 show={showSettings}
                 onClose={() => setShowSettings(false)}
-                theme={theme}
-                toggleTheme={toggleTheme}
-            />*/}
+            />
         </>
     );
 }
