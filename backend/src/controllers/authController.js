@@ -12,13 +12,12 @@ export const register = async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
-    // ✅ ДОБАВЛЕНО: Детальное логирование
     appLogger.info(
       { username, email: email ? "provided" : "empty" },
       "Registration attempt"
     );
 
-    // ✅ ДОБАВЛЕНО: Валидация пароля
+    // ✅ Валидация пароля
     if (!password || password.length < 6) {
       return res.status(400).json({
         success: false,
@@ -26,7 +25,7 @@ export const register = async (req, res) => {
       });
     }
 
-    // Проверяем существование пользователя по username
+    // ✅ Проверяем существование пользователя по username
     const existingUserByUsername = await User.findOne({ username });
     if (existingUserByUsername) {
       return res.status(409).json({
@@ -35,9 +34,14 @@ export const register = async (req, res) => {
       });
     }
 
-    // Если email указан, проверяем его уникальность
-    if (email && email.trim()) {
-      const existingUserByEmail = await User.findOne({ email: email.trim() });
+    // ✅ ИСПРАВЛЕНО: Нормализуем email и проверяем его уникальность
+    const normalizedEmail =
+      email && email.trim() ? email.trim().toLowerCase() : null;
+
+    if (normalizedEmail) {
+      const existingUserByEmail = await User.findOne({
+        email: normalizedEmail,
+      });
       if (existingUserByEmail) {
         return res.status(409).json({
           success: false,
@@ -46,27 +50,24 @@ export const register = async (req, res) => {
       }
     }
 
-    // ✅ ИСПРАВЛЕНО: Более надёжное создание userData
+    // ✅ ИСПРАВЛЕНО: Создаём userData с нормализованным email
     const userData = {
       username: username.trim(),
-      password: password, // Хеширование произойдёт в pre-save hook
+      password: password,
     };
 
-    // Добавляем email только если он указан и не пустой
-    if (email && email.trim()) {
-      userData.email = email.trim().toLowerCase();
+    // Добавляем email только если он валиден
+    if (normalizedEmail) {
+      userData.email = normalizedEmail;
     }
 
-    // ✅ ДОБАВЛЕНО: Проверка перед созданием
     appLogger.debug(
       { userData: { ...userData, password: "[HIDDEN]" } },
       "Creating user"
     );
 
-    // Создаем пользователя
     const user = await User.create(userData);
 
-    // ✅ ДОБАВЛЕНО: Проверка успешного создания
     if (!user) {
       throw new Error("User creation failed");
     }
@@ -90,7 +91,6 @@ export const register = async (req, res) => {
       },
     });
   } catch (error) {
-    // ✅ УЛУЧШЕНО: Более детальное логирование ошибок
     appLogger.error(
       {
         error: error.message,
@@ -101,7 +101,6 @@ export const register = async (req, res) => {
       "Registration error"
     );
 
-    // ✅ ДОБАВЛЕНО: Обработка специфичных ошибок Mongoose
     if (error.name === "ValidationError") {
       const messages = Object.values(error.errors).map((err) => err.message);
       return res.status(400).json({

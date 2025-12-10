@@ -102,12 +102,12 @@ export default function LeftSidebar({ handleLogout }) {
             </div>
 
             {/* Settings Modal */}
-            <SettingsModal
+            {/*<SettingsModal
                 show={showSettings}
                 onClose={() => setShowSettings(false)}
                 theme={theme}
                 toggleTheme={toggleTheme}
-            />
+            />*/}
         </>
     );
 }

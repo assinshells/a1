@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
+import { useNavigate } from 'react-router-dom';
 import { messageAPI } from '../services/api';
 import LeftSidebar from '../components/LeftSidebar';
 import ChatSidebar from '../components/ChatSidebar';
@@ -13,8 +14,9 @@ const Chat = () => {
     const [loading, setLoading] = useState(true);
     const [currentRoom, setCurrentRoom] = useState('general');
     const [typingUsers, setTypingUsers] = useState([]);
-    const { user, token } = useAuth();
+    const { user, token, logout } = useAuth();
     const { socket, connected, sendMessage, joinRoom } = useSocket();
+    const navigate = useNavigate();
     const messagesEndRef = useRef(null);
 
     useEffect(() => {
@@ -80,6 +82,12 @@ const Chat = () => {
     const handleRoomChange = (room) => {
         setCurrentRoom(room);
         joinRoom(room);
+    };
+
+    // ✅ ИСПРАВЛЕНО: Добавлена функция handleLogout
+    const handleLogout = async () => {
+        await logout();
+        navigate('/login');
     };
 
     const scrollToBottom = () => {

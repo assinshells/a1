@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
@@ -20,7 +20,6 @@ export const SocketProvider = ({ children }) => {
 
     useEffect(() => {
         if (isAuthenticated && token) {
-            // ✅ ИСПРАВЛЕНО: используем правильный порт 5000
             const newSocket = io('http://localhost:5000', {
                 auth: { token },
                 reconnection: true,
@@ -65,37 +64,39 @@ export const SocketProvider = ({ children }) => {
         }
     }, [isAuthenticated, token]);
 
-    const sendMessage = (data) => {
+    // ✅ ОПТИМИЗИРОВАНО: Мемоизированные функции
+    const sendMessage = useCallback((data) => {
         if (socket && connected) {
             socket.emit('message:send', data);
         }
-    };
+    }, [socket, connected]);
 
-    const joinRoom = (roomName) => {
+    const joinRoom = useCallback((roomName) => {
         if (socket && connected) {
             socket.emit('room:join', roomName);
         }
-    };
+    }, [socket, connected]);
 
-    const leaveRoom = (roomName) => {
+    const leaveRoom = useCallback((roomName) => {
         if (socket && connected) {
             socket.emit('room:leave', roomName);
         }
-    };
+    }, [socket, connected]);
 
-    const startTyping = (data) => {
+    const startTyping = useCallback((data) => {
         if (socket && connected) {
             socket.emit('typing:start', data);
         }
-    };
+    }, [socket, connected]);
 
-    const stopTyping = (data) => {
+    const stopTyping = useCallback((data) => {
         if (socket && connected) {
             socket.emit('typing:stop', data);
         }
-    };
+    }, [socket, connected]);
 
-    const value = {
+    // ✅ ОПТИМИЗИРОВАНО: Мемоизированное значение контекста
+    const value = useMemo(() => ({
         socket,
         connected,
         activeUsers,
@@ -104,7 +105,7 @@ export const SocketProvider = ({ children }) => {
         leaveRoom,
         startTyping,
         stopTyping,
-    };
+    }), [socket, connected, activeUsers, sendMessage, joinRoom, leaveRoom, startTyping, stopTyping]);
 
     return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
 };

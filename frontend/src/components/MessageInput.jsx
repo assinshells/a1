@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSocket } from '../contexts/SocketContext';
 
-const MessageInput = ({ onSendMessage }) => {
+const MessageInput = ({ onSendMessage, currentRoom = 'general' }) => {
     const [message, setMessage] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const inputRef = useRef(null);
@@ -12,32 +12,53 @@ const MessageInput = ({ onSendMessage }) => {
         inputRef.current?.focus();
     }, []);
 
-    const handleChange = (e) => {
-        setMessage(e.target.value);
-
+    // ✅ ОПТИМИЗИРОВАНО: Дебаунсинг для typing события
+    const handleTypingStart = useCallback(() => {
         if (!isTyping) {
             setIsTyping(true);
-            startTyping({ room: 'general' });
+            startTyping({ room: currentRoom });
         }
+    }, [isTyping, startTyping, currentRoom]);
 
-        if (typingTimeoutRef.current) {
-            clearTimeout(typingTimeoutRef.current);
+    const handleTypingStop = useCallback(() => {
+        setIsTyping(false);
+        stopTyping({ room: currentRoom });
+    }, [stopTyping, currentRoom]);
+
+    const handleChange = (e) => {
+        const newValue = e.target.value;
+        setMessage(newValue);
+
+        // ✅ ОПТИМИЗИРОВАНО: Отправляем typing только если есть текст
+        if (newValue.trim()) {
+            handleTypingStart();
+
+            // Сбрасываем таймер
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+
+            // Устанавливаем новый таймер на остановку typing
+            typingTimeoutRef.current = setTimeout(() => {
+                handleTypingStop();
+            }, 1000);
+        } else {
+            // Если поле пустое, останавливаем typing сразу
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            handleTypingStop();
         }
-
-        typingTimeoutRef.current = setTimeout(() => {
-            setIsTyping(false);
-            stopTyping({ room: 'general' });
-        }, 1000);
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
 
-        if (message.trim()) {
-            onSendMessage(message.trim());
+        const trimmedMessage = message.trim();
+        if (trimmedMessage) {
+            onSendMessage(trimmedMessage);
             setMessage('');
-            setIsTyping(false);
-            stopTyping({ room: 'general' });
+            handleTypingStop();
 
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
@@ -51,6 +72,18 @@ const MessageInput = ({ onSendMessage }) => {
             handleSubmit(e);
         }
     };
+
+    // ✅ ОПТИМИЗИРОВАНО: Очистка таймера при размонтировании
+    useEffect(() => {
+        return () => {
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            if (isTyping) {
+                stopTyping({ room: currentRoom });
+            }
+        };
+    }, [isTyping, stopTyping, currentRoom]);
 
     return (
         <div className="chat-input">
