@@ -10,6 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import './styles/App.css';
+import './styles/index.css';
 
 function App() {
   return (

@@ -46,7 +46,7 @@ export default function LeftSidebar({ handleLogout }) {
                                 aria-haspopup="true"
                                 aria-expanded="false"
                             >
-                                <i className="bi bi-three-dots"></i>
+                                <i className="bi bi-list"></i>
                             </a>
                             <div className="dropdown-menu">
                                 <a className="dropdown-item" href="#" onClick={(e) => e.preventDefault()}>
@@ -58,7 +58,7 @@ export default function LeftSidebar({ handleLogout }) {
                                     Настройки
                                 </a>
                                 <div className="dropdown-divider"></div>
-                                <a className="dropdown-item text-danger" href="#" onClick={handleLogoutClick}>
+                                <a className="dropdown-item" href="#" onClick={handleLogoutClick}>
                                     <i className="bi bi-box-arrow-right float-end"></i>
                                     Выход
                                 </a>
@@ -79,7 +79,7 @@ export default function LeftSidebar({ handleLogout }) {
                                 aria-expanded="false"
                                 title="Меню"
                             >
-                                <i className="bi bi-three-dots"></i>
+                                <i className="bi bi-list"></i>
                             </a>
                             <div className="dropdown-menu">
                                 <a className="dropdown-item" href="#" onClick={(e) => e.preventDefault()}>
@@ -91,7 +91,7 @@ export default function LeftSidebar({ handleLogout }) {
                                     Настройки
                                 </a>
                                 <div className="dropdown-divider"></div>
-                                <a className="dropdown-item text-danger" href="#" onClick={handleLogoutClick}>
+                                <a className="dropdown-item" href="#" onClick={handleLogoutClick}>
                                     <i className="bi bi-box-arrow-right float-end"></i>
                                     Выход
                                 </a>

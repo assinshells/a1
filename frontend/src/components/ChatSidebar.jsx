@@ -22,7 +22,7 @@ const ChatSidebar = ({ currentRoom, onRoomChange }) => {
     };
 
     return (
-        <div className="chat-sidebar">
+        <div className="chat-leftsidebar ms-auto">
             <div className="sidebar-header">
                 <div className="d-flex align-items-center">
                     <i className="bi bi-chat-dots-fill text-primary fs-3 me-2"></i>

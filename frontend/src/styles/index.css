@@ -1,13 +1,96 @@
-.input-group-text {
-  /*border: none !important;*/
-  background: transparent !important;
+/* ===== LEFT SIDEBAR ===== */
+.side-menu {
+  min-width: 75px;
+  max-width: 75px;
+  height: 100vh;
+  min-height: 570px;
+  background-color: var(--bs-sidebar-bg);
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  z-index: 9;
+  -webkit-box-shadow: 0 2px 4px rgba(15, 34, 58, 0.12);
+  box-shadow: 0 2px 4px rgba(15, 34, 58, 0.12);
+}
+@media (max-width: 991.98px) {
+  .side-menu {
+    position: fixed;
+    bottom: 0;
+    height: 60px;
+    min-width: 100%;
+    min-height: auto;
+    display: block;
+    border-top: 1px solid var(--bs-border-color);
+  }
+}
+.side-menu .navbar-brand-box {
+  text-align: center;
+}
+@media (max-width: 991.98px) {
+  .side-menu .navbar-brand-box {
+    display: none;
+  }
+}
+.side-menu .navbar-brand-box .logo {
+  line-height: 70px;
+  display: block;
+}
+.side-menu-nav .nav-item {
+  margin: 7px 0;
+}
+@media (max-width: 991.98px) {
+  .side-menu-nav .nav-item {
+    -ms-flex-preferred-size: 0;
+    flex-basis: 0;
+    -webkit-box-flex: 1;
+    -ms-flex-positive: 1;
+    flex-grow: 1;
+    margin: 5px 0;
+  }
+}
+.side-menu-nav .nav-item .nav-link {
+  text-align: center;
+  font-size: 24px;
+  color: var(--bs-sidebar-menu-item-color);
+  width: 56px;
+  height: 56px;
+  line-height: 56px;
+  margin: 0 auto;
+  border-radius: 8px;
+  padding: 0;
+}
+@media (max-width: 991.98px) {
+  .side-menu-nav .nav-item .nav-link {
+    font-size: 20px;
+    width: 48px;
+    height: 48px;
+    line-height: 48px;
+  }
 }
 
-.eye-icon {
-  position: "absolute";
-  right: "10px";
-  top: "50%";
-  transform: "translateY(-50%)";
-  cursor: "pointer";
-  color: "#495057";
+/* ===== RIGHT SIDEBAR ===== */
+.chat-leftsidebar {
+  margin-left: auto;
+  height: 100vh;
+  background-color: var(--bs-sidebar-sub-bg);
+}
+@media (min-width: 992px) {
+  .chat-leftsidebar {
+    min-width: 380px;
+    max-width: 380px;
+  }
+}
+.chat-leftsidebar .user-status-box {
+  background-color: var(--bs-light);
+  padding: 8px;
+  border-radius: 8px;
+  text-align: center;
+  margin-top: 16px;
+  display: block;
+}
+.chat-leftsidebar .user-status-box .chat-user-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
 }
