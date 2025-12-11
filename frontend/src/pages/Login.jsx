@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getDefaultRoom } from '../config/rooms';
 
 import AuthForm from "../components/auth/AuthForm";
 import AuthInput from "../components/auth/AuthInput";
 import AuthPasswordInput from "../components/auth/AuthPasswordInput";
+import RoomSelector from "../components/auth/RoomSelector";
 import Button from "../components/common/Button";
 import Logo from "../components/common/Logo";
 
 const Login = () => {
-    const [formData, setFormData] = useState({ identifier: '', password: '' });
+    const [formData, setFormData] = useState({ identifier: '', password: '', selectedRoom: getDefaultRoom().id });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
@@ -17,6 +19,10 @@ const Login = () => {
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+            const handleRoomChange = (roomId) => {
+        setFormData({ ...formData, selectedRoom: roomId });
     };
 
     const handleSubmit = async (e) => {
@@ -62,7 +68,10 @@ const Login = () => {
                     placeholder="Password"
                     required
                 />
-
+                <RoomSelector
+                    selectedRoom={formData.selectedRoom}
+                    onRoomChange={handleRoomChange}
+                />
                 <Button loading={loading}>
                     Log In
                 </Button>

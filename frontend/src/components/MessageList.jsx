@@ -1,32 +1,24 @@
 // frontend/src/components/MessageList.jsx
 import { memo } from 'react';
-import { formatDistanceToNow } from '../utils/dateUtils';
 
 const MessageList = memo(({ messages, currentUser }) => {
-    // ✅ ИСПРАВЛЕНО: Единый источник истины для времени
+    // ✅ Форматирование времени: "14:32"
     const formatTime = (dateString) => {
-        if (!dateString) return 'недавно';
+        if (!dateString) return '';
 
         try {
             const date = new Date(dateString);
-            if (isNaN(date.getTime())) return 'недавно';
-            return formatDistanceToNow(date);
+            if (isNaN(date.getTime())) return '';
+
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${hours}:${minutes}`;
         } catch {
-            return 'недавно';
+            return '';
         }
     };
 
-    // ✅ ИСПРАВЛЕНО: Унифицированная проверка отправителя
-    const isOwnMessage = (message) => {
-        const currentUserId = currentUser?.id || currentUser?._id;
-        const senderId = message.sender?.id || message.sender?._id || message.sender;
-
-        if (!currentUserId || !senderId) return false;
-
-        return currentUserId.toString() === senderId.toString();
-    };
-
-    // ✅ ИСПРАВЛЕНО: Безопасное получение username
+    // ✅ Безопасное получение username
     const getSenderUsername = (message) => {
         return message.sender?.username || 'Anonymous';
     };
@@ -44,49 +36,22 @@ const MessageList = memo(({ messages, currentUser }) => {
     return (
         <div className="message-list">
             {messages.map((message, index) => {
-                // ✅ ИСПРАВЛЕНО: Приоритет _id, затем комбинация
                 const messageKey = message._id || `msg-${index}-${Date.now()}`;
-                const isOwn = isOwnMessage(message);
+                const time = formatTime(message.createdAt);
+                const username = getSenderUsername(message);
 
                 return (
-                    <div
-                        key={messageKey}
-                        className={`message ${isOwn ? 'message-own' : 'message-other'}`}
-                    >
-                        {!isOwn && (
-                            <div className="message-avatar">
-                                {message.sender?.avatar ? (
-                                    <img
-                                        src={message.sender.avatar}
-                                        alt={getSenderUsername(message)}
-                                    />
-                                ) : (
-                                    <i className="bi bi-person-circle"></i>
-                                )}
-                            </div>
+                    <div key={messageKey} className="message-item">
+                        {/* ✅ ФОРМАТ: время — пользователь — сообщение */}
+                        <span className="message-time">{time}</span>
+                        <span className="message-separator">  </span>
+                        <span className="message-author">{username}</span>
+                        <span className="message-separator">  </span>
+                        <span className="message-text">{message.content}</span>
+
+                        {message.isEdited && (
+                            <span className="message-edited"> (изменено)</span>
                         )}
-
-                        <div className="message-content">
-                            {!isOwn && (
-                                <div className="message-author">
-                                    {getSenderUsername(message)}
-                                </div>
-                            )}
-
-                            <div className="message-bubble">
-                                <p className="message-text">{message.content}</p>
-                                {message.isEdited && (
-                                    <span className="message-edited">
-                                        <i className="bi bi-pencil-fill"></i> изменено
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="message-time">
-                                {/* ✅ ТОЛЬКО createdAt */}
-                                {formatTime(message.createdAt)}
-                            </div>
-                        </div>
                     </div>
                 );
             })}

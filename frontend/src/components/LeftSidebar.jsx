@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import Logo from "../components/common/Logo";
 import SettingsModal from "./modals/SettingsModal";
 
 export default function LeftSidebar({ handleLogout }) {
@@ -22,7 +21,6 @@ export default function LeftSidebar({ handleLogout }) {
     return (
         <>
             <div className="side-menu flex-lg-column me-lg-1 ms-lg-0">
-                <Logo />
                 <div className="flex-lg-column my-auto">
                     <ul className="nav side-menu-nav justify-content-center">
                         <li className="nav-item" title="">

@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getDefaultRoom } from '../config/rooms';
 
 import AuthForm from "../components/auth/AuthForm";
 import AuthInput from "../components/auth/AuthInput";
 import AuthPasswordInput from "../components/auth/AuthPasswordInput";
+import RoomSelector from "../components/auth/RoomSelector";
 import Button from "../components/common/Button";
 
 const Register = () => {
@@ -13,6 +15,7 @@ const Register = () => {
         email: '',
         password: '',
         confirmPassword: '',
+        selectedRoom: getDefaultRoom().id
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -21,6 +24,10 @@ const Register = () => {
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+        const handleRoomChange = (roomId) => {
+        setFormData({ ...formData, selectedRoom: roomId });
     };
 
     const handleSubmit = async (e) => {
@@ -45,7 +52,7 @@ const Register = () => {
                 formData.email || undefined, // Email опционален
                 formData.password
             );
-            navigate('/chat');
+            navigate(`/chat?room=${formData.selectedRoom}`);
         } catch (err) {
             setError(err.message || 'Registration failed');
         } finally {
@@ -107,7 +114,10 @@ const Register = () => {
                     placeholder="••••••••"
                     required
                 />
-
+                <RoomSelector
+                    selectedRoom={formData.selectedRoom}
+                    onRoomChange={handleRoomChange}
+                />
                 <Button loading={loading}>
                     <i className="bi bi-person-plus me-2"></i>
                     Sign Up

@@ -135,9 +135,9 @@ export const initializeSocket = (httpServer) => {
         });
 
         // ✅ Populate для отправки клиентам
-        await message.populate("sender", "username avatar status");
+        await message.populate("sender", "username status");
         if (message.receiver) {
-          await message.populate("receiver", "username avatar status");
+          await message.populate("receiver", "username status");
         }
 
         // ✅ УНИФИЦИРОВАННАЯ структура (БЕЗ timestamp, ТОЛЬКО createdAt)

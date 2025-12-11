@@ -32,10 +32,6 @@ const userSchema = new mongoose.Schema(
       minlength: [6, "Password must be at least 6 characters"],
       select: false,
     },
-    avatar: {
-      type: String,
-      default: null,
-    },
     status: {
       type: String,
       enum: ["online", "offline", "away"],
@@ -94,7 +90,6 @@ userSchema.methods.toPublicJSON = function () {
     id: this._id,
     username: this.username,
     email: this.email,
-    avatar: this.avatar,
     status: this.status,
     lastSeen: this.lastSeen,
     createdAt: this.createdAt,

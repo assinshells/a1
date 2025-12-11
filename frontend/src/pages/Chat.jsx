@@ -5,7 +5,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useNavigate } from 'react-router-dom';
 import { messageAPI } from '../services/api';
 import LeftSidebar from '../components/LeftSidebar';
-import ChatSidebar from '../components/ChatSidebar';
+import RightSidebar from '../components/RightSidebar';
 import MessageList from '../components/MessageList';
 import MessageInput from '../components/MessageInput';
 import ChatHeader from '../components/ChatHeader';
@@ -182,10 +182,7 @@ const Chat = () => {
     return (
         <div className="chat-container">
             <LeftSidebar handleLogout={handleLogout} />
-            <ChatSidebar
-                currentRoom={currentRoom}
-                onRoomChange={handleRoomChange}
-            />
+
 
             <div className="chat-main">
                 <ChatHeader room={currentRoom} connected={connected} />
@@ -217,6 +214,10 @@ const Chat = () => {
                     currentRoom={currentRoom}
                 />
             </div>
+            <RightSidebar
+                currentRoom={currentRoom}
+                onRoomChange={handleRoomChange}
+            />
         </div>
     );
 };
