@@ -6,7 +6,9 @@ import Message from "../models/Message.js";
 import { serverLogger } from "./logger.js";
 import config from "./env.js";
 
-const activeUsers = new Map();
+// ✅ ИСПРАВЛЕНО: Структура для отслеживания пользователей
+const activeUsers = new Map(); // userId -> { socketId, username, rooms: Set }
+const roomUsers = new Map();   // roomName -> Set<userId>
 
 export const initializeSocket = (httpServer) => {
   const io = new Server(httpServer, {
@@ -45,63 +47,79 @@ export const initializeSocket = (httpServer) => {
     const userId = socket.userId;
     const username = socket.username;
 
-    serverLogger.info(
-      { userId, username, socketId: socket.id },
-      "User connected"
-    );
+    serverLogger.info({ userId, username, socketId: socket.id }, "User connected");
 
+    // ✅ ИСПРАВЛЕНО: Инициализация пользователя
     activeUsers.set(userId, {
       socketId: socket.id,
       username,
       rooms: new Set(["general"]),
     });
 
+    // ✅ Добавляем в комнату general
+    socket.join("general");
+    addUserToRoom("general", userId);
+
     await User.findByIdAndUpdate(userId, {
       status: "online",
       lastSeen: new Date(),
     });
 
-    socket.join("general");
-
+    // ✅ ИСПРАВЛЕНО: Отправляем статистику
     socket.emit("connected", {
       userId,
       username,
-      activeUsers: Array.from(activeUsers.entries()).map(([id, data]) => ({
-        userId: id,
-        username: data.username,
-      })),
+      activeUsers: getActiveUsersList(),
+      roomStats: getRoomStats(),
     });
 
-    socket.broadcast.emit("user:online", { userId, username });
+    // ✅ Уведомляем всех о новом пользователе
+    socket.broadcast.emit("user:online", { 
+      userId, 
+      username,
+      totalOnline: activeUsers.size,
+      roomStats: getRoomStats(),
+    });
 
-    // ✅ ИСПРАВЛЕНО: room:join теперь корректно обрабатывает строки
+    // ✅ ИСПРАВЛЕНО: room:join с валидацией
     socket.on("room:join", (roomName) => {
       if (typeof roomName !== "string" || !roomName.trim()) {
         serverLogger.warn({ userId, roomName }, "Invalid room name");
+        socket.emit("room:error", { error: "Invalid room name" });
         return;
       }
 
-      socket.join(roomName);
+      const normalizedRoom = roomName.trim();
+      socket.join(normalizedRoom);
+
       const userData = activeUsers.get(userId);
       if (userData) {
-        userData.rooms.add(roomName);
+        userData.rooms.add(normalizedRoom);
       }
 
-      serverLogger.info({ userId, roomName }, "User joined room");
+      addUserToRoom(normalizedRoom, userId);
 
-      socket.to(roomName).emit("user:joined", {
+      serverLogger.info({ userId, room: normalizedRoom }, "User joined room");
+
+      // ✅ Уведомляем комнату
+      io.to(normalizedRoom).emit("user:joined", {
         userId,
         username,
-        room: roomName,
+        room: normalizedRoom,
+        roomStats: getRoomStats(),
       });
     });
 
+    // ✅ ИСПРАВЛЕНО: room:leave
     socket.on("room:leave", (roomName) => {
       socket.leave(roomName);
+
       const userData = activeUsers.get(userId);
       if (userData) {
         userData.rooms.delete(roomName);
       }
+
+      removeUserFromRoom(roomName, userId);
 
       serverLogger.info({ userId, roomName }, "User left room");
 
@@ -109,23 +127,21 @@ export const initializeSocket = (httpServer) => {
         userId,
         username,
         room: roomName,
+        roomStats: getRoomStats(),
       });
     });
 
-    // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Унифицированная структура сообщения
+    // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отправка сообщений
     socket.on("message:send", async (data) => {
       try {
         const { receiver, room, content, type } = data;
 
-        // Валидация
         if (!content || !content.trim()) {
-          socket.emit("message:error", {
-            error: "Message content is required",
-          });
+          socket.emit("message:error", { error: "Message content is required" });
           return;
         }
 
-        // ✅ Создаём и сохраняем сообщение в БД
+        // Создаём сообщение
         const message = await Message.create({
           sender: userId,
           receiver: receiver || null,
@@ -134,13 +150,12 @@ export const initializeSocket = (httpServer) => {
           type: type || "text",
         });
 
-        // ✅ Populate для отправки клиентам
         await message.populate("sender", "username status");
         if (message.receiver) {
           await message.populate("receiver", "username status");
         }
 
-        // ✅ УНИФИЦИРОВАННАЯ структура (БЕЗ timestamp, ТОЛЬКО createdAt)
+        // ✅ УНИФИЦИРОВАННАЯ структура
         const messageData = {
           _id: message._id.toString(),
           sender: {
@@ -149,49 +164,39 @@ export const initializeSocket = (httpServer) => {
             avatar: message.sender.avatar,
             status: message.sender.status,
           },
-          receiver: message.receiver
-            ? {
-                id: message.receiver._id.toString(),
-                username: message.receiver.username,
-              }
-            : null,
+          receiver: message.receiver ? {
+            id: message.receiver._id.toString(),
+            username: message.receiver.username,
+          } : null,
           room: message.room,
           content: message.content,
           type: message.type,
           isRead: message.isRead,
           isEdited: message.isEdited,
-          createdAt: message.createdAt.toISOString(), // ✅ ISO формат
+          createdAt: message.createdAt.toISOString(),
         };
 
         if (receiver) {
-          // Приватное сообщение
+          // ✅ Приватное сообщение
           const receiverData = Array.from(activeUsers.entries()).find(
             ([id]) => id === receiver
           );
 
           if (receiverData) {
-            io.to(receiverData[1].socketId).emit(
-              "message:receive",
-              messageData
-            );
+            io.to(receiverData[1].socketId).emit("message:receive", messageData);
           }
 
+          // ✅ ИСПРАВЛЕНО: Отправляем подтверждение ТОЛЬКО отправителю
           socket.emit("message:sent", messageData);
         } else if (room) {
-          // Сообщение в комнату (включая отправителя)
+          // ✅ ИСПРАВЛЕНО: Отправляем message:receive ВСЕМ в комнате (включая отправителя)
           io.to(room).emit("message:receive", messageData);
         }
 
-        serverLogger.info(
-          { sender: userId, receiver, room, messageId: message._id },
-          "Message sent and saved"
-        );
+        serverLogger.info({ sender: userId, receiver, room, messageId: message._id }, "Message sent");
       } catch (error) {
         serverLogger.error({ error, userId }, "Error sending message");
-        socket.emit("message:error", {
-          error: "Failed to send message",
-          details: error.message,
-        });
+        socket.emit("message:error", { error: "Failed to send message", details: error.message });
       }
     });
 
@@ -204,17 +209,10 @@ export const initializeSocket = (httpServer) => {
           ([id]) => id === receiver
         );
         if (receiverData) {
-          io.to(receiverData[1].socketId).emit("typing:user", {
-            userId,
-            username,
-          });
+          io.to(receiverData[1].socketId).emit("typing:user", { userId, username });
         }
       } else if (room) {
-        socket.to(room).emit("typing:user", {
-          userId,
-          username,
-          room,
-        });
+        socket.to(room).emit("typing:user", { userId, username, room });
       }
     });
 
@@ -226,22 +224,24 @@ export const initializeSocket = (httpServer) => {
           ([id]) => id === receiver
         );
         if (receiverData) {
-          io.to(receiverData[1].socketId).emit("typing:stop", {
-            userId,
-            username,
-          });
+          io.to(receiverData[1].socketId).emit("typing:stop", { userId, username });
         }
       } else if (room) {
-        socket.to(room).emit("typing:stop", {
-          userId,
-          username,
-          room,
-        });
+        socket.to(room).emit("typing:stop", { userId, username, room });
       }
     });
 
+    // ✅ ИСПРАВЛЕНО: disconnect с очисткой всех комнат
     socket.on("disconnect", async () => {
       serverLogger.info({ userId, username }, "User disconnected");
+
+      const userData = activeUsers.get(userId);
+      if (userData) {
+        // Удаляем из всех комнат
+        userData.rooms.forEach(room => {
+          removeUserFromRoom(room, userId);
+        });
+      }
 
       activeUsers.delete(userId);
 
@@ -253,6 +253,8 @@ export const initializeSocket = (httpServer) => {
       socket.broadcast.emit("user:offline", {
         userId,
         username,
+        totalOnline: activeUsers.size,
+        roomStats: getRoomStats(),
       });
     });
 
@@ -262,9 +264,34 @@ export const initializeSocket = (httpServer) => {
   });
 
   serverLogger.info("Socket.IO initialized");
-
   return io;
 };
+
+// ✅ НОВЫЕ ФУНКЦИИ: Управление пользователями в комнатах
+function addUserToRoom(roomName, userId) {
+  if (!roomUsers.has(roomName)) {
+    roomUsers.set(roomName, new Set());
+  }
+  roomUsers.get(roomName).add(userId);
+}
+
+function removeUserFromRoom(roomName, userId) {
+  const users = roomUsers.get(roomName);
+  if (users) {
+    users.delete(userId);
+    if (users.size === 0) {
+      roomUsers.delete(roomName);
+    }
+  }
+}
+
+function getRoomStats() {
+  const stats = {};
+  roomUsers.forEach((users, room) => {
+    stats[room] = users.size;
+  });
+  return stats;
+}
 
 export const getActiveUsers = () => {
   return Array.from(activeUsers.entries()).map(([userId, data]) => ({
@@ -272,6 +299,21 @@ export const getActiveUsers = () => {
     username: data.username,
     rooms: Array.from(data.rooms),
   }));
+};
+
+export const getActiveUsersList = () => {
+  return Array.from(activeUsers.entries()).map(([userId, data]) => ({
+    userId,
+    username: data.username,
+  }));
+};
+
+export const getRoomUserCount = (roomName) => {
+  return roomUsers.get(roomName)?.size || 0;
+};
+
+export const getTotalOnlineUsers = () => {
+  return activeUsers.size;
 };
 
 export default initializeSocket;
