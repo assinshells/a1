@@ -2,21 +2,36 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { messageAPI } from '../services/api';
 import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
 import MessageList from '../components/MessageList';
 import MessageInput from '../components/MessageInput';
 import ChatHeader from '../components/ChatHeader';
+import { getDefaultRoom, isValidRoom } from '../config/rooms';
 
 const Chat = () => {
+    const [searchParams] = useSearchParams();
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [currentRoom, setCurrentRoom] = useState('general');
-    const [typingUsers, setTypingUsers] = useState([]);
     
-    // ✅ НОВОЕ: Статистика пользователей
+    // ✅ ИСПРАВЛЕНО: Читаем комнату из URL или localStorage
+    const getInitialRoom = () => {
+        const urlRoom = searchParams.get('room');
+        const savedRoom = localStorage.getItem('selectedRoom');
+        
+        if (urlRoom && isValidRoom(urlRoom)) {
+            return urlRoom;
+        }
+        if (savedRoom && isValidRoom(savedRoom)) {
+            return savedRoom;
+        }
+        return getDefaultRoom().id;
+    };
+    
+    const [currentRoom, setCurrentRoom] = useState(getInitialRoom);
+    const [typingUsers, setTypingUsers] = useState([]);
     const [roomStats, setRoomStats] = useState({});
     const [totalOnline, setTotalOnline] = useState(0);
     
@@ -27,12 +42,16 @@ const Chat = () => {
     const loadingAbortRef = useRef(null);
     const currentRoomRef = useRef(currentRoom);
 
-    // ✅ ИСПРАВЛЕНО: Синхронизация ref с state
+    // ✅ Синхронизация ref с state
     useEffect(() => {
         currentRoomRef.current = currentRoom;
-    }, [currentRoom]);
+        // ✅ НОВОЕ: Обновляем URL при смене комнаты
+        navigate(`/chat?room=${currentRoom}`, { replace: true });
+        // ✅ НОВОЕ: Сохраняем в localStorage
+        localStorage.setItem('selectedRoom', currentRoom);
+    }, [currentRoom, navigate]);
 
-    // ✅ Загрузка сообщений с отменой
+    // ✅ Загрузка сообщений
     const loadMessages = useCallback(async (room, abortSignal) => {
         if (!token || !room) return;
 
@@ -60,7 +79,7 @@ const Chat = () => {
         }
     }, [token]);
 
-    // ✅ ИСПРАВЛЕНО: Смена комнаты с правильной очисткой
+    // ✅ Смена комнаты
     useEffect(() => {
         if (loadingAbortRef.current) {
             loadingAbortRef.current.abort();
@@ -79,18 +98,16 @@ const Chat = () => {
         };
     }, [currentRoom, loadMessages]);
 
-    // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка новых сообщений
+    // ✅ Обработка новых сообщений
     const handleNewMessage = useCallback((message) => {
         console.log('📨 New message received:', message);
 
-        // ✅ Проверяем соответствие ТЕКУЩЕЙ комнате (через ref)
         if (message.room !== currentRoomRef.current) {
             console.log(`⚠️ Message for room ${message.room}, current is ${currentRoomRef.current}`);
             return;
         }
 
         setMessages((prev) => {
-            // ✅ Проверяем дубликаты
             if (message._id && prev.some(m => m._id === message._id)) {
                 console.log('⚠️ Duplicate message ignored');
                 return prev;
@@ -117,37 +134,32 @@ const Chat = () => {
         setTypingUsers((prev) => prev.filter((u) => u.userId !== data.userId));
     }, []);
 
-    // ✅ НОВОЕ: Обработка статистики пользователей
+    // ✅ Обработка статистики
     const handleUserStats = useCallback((data) => {
+        console.log('📊 Stats update:', data);
+        
         if (data.totalOnline !== undefined) {
             setTotalOnline(data.totalOnline);
         }
         if (data.roomStats) {
             setRoomStats(data.roomStats);
+            console.log('📊 Updated room stats:', data.roomStats);
         }
     }, []);
 
-    // ✅ ИСПРАВЛЕНО: Подписка на Socket события
+    // ✅ Socket события
     useEffect(() => {
         if (!socket) return;
 
         console.log('🔌 Subscribing to socket events');
 
-        // ✅ КРИТИЧЕСКИ ВАЖНО: Подписываемся ТОЛЬКО на message:receive
         socket.on('message:receive', handleNewMessage);
-        
-        // ✅ ТОЛЬКО ДЛЯ ПРИВАТНЫХ СООБЩЕНИЙ (опционально)
-        // socket.on('message:sent', handleNewMessage);
-        
         socket.on('typing:user', handleTyping);
         socket.on('typing:stop', handleStopTyping);
-
-        // ✅ НОВОЕ: Подписка на статистику
+        
+        // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Единое событие для всех обновлений статистики
         socket.on('connected', handleUserStats);
-        socket.on('user:online', handleUserStats);
-        socket.on('user:offline', handleUserStats);
-        socket.on('user:joined', handleUserStats);
-        socket.on('user:left', handleUserStats);
+        socket.on('stats:update', handleUserStats);
 
         socket.on('message:error', (error) => {
             console.error('❌ Socket message error:', error);
@@ -160,10 +172,7 @@ const Chat = () => {
             socket.off('typing:user', handleTyping);
             socket.off('typing:stop', handleStopTyping);
             socket.off('connected', handleUserStats);
-            socket.off('user:online', handleUserStats);
-            socket.off('user:offline', handleUserStats);
-            socket.off('user:joined', handleUserStats);
-            socket.off('user:left', handleUserStats);
+            socket.off('stats:update', handleUserStats);
             socket.off('message:error');
         };
     }, [socket, handleNewMessage, handleTyping, handleStopTyping, handleUserStats]);
@@ -186,25 +195,22 @@ const Chat = () => {
         });
     }, [currentRoom, sendMessage]);
 
-    // ✅ ИСПРАВЛЕНО: Смена комнаты
+    // ✅ Смена комнаты
     const handleRoomChange = useCallback((room) => {
         if (room === currentRoom) return;
 
         console.log(`🚪 Changing room from ${currentRoom} to ${room}`);
 
-        // ✅ Сначала покидаем текущую комнату
         if (currentRoom !== 'general') {
             leaveRoom(currentRoom);
         }
 
-        // ✅ Присоединяемся к новой
         joinRoom(room);
-
-        // ✅ Обновляем state
         setCurrentRoom(room);
     }, [currentRoom, joinRoom, leaveRoom]);
 
     const handleLogout = async () => {
+        localStorage.removeItem('selectedRoom');
         await logout();
         navigate('/login');
     };

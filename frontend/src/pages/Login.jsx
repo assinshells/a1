@@ -1,3 +1,4 @@
+// frontend/src/pages/Login.jsx
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,7 +12,11 @@ import Button from "../components/common/Button";
 import Logo from "../components/common/Logo";
 
 const Login = () => {
-    const [formData, setFormData] = useState({ identifier: '', password: '', selectedRoom: getDefaultRoom().id });
+    const [formData, setFormData] = useState({ 
+        identifier: '', 
+        password: '', 
+        selectedRoom: getDefaultRoom().id 
+    });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
@@ -21,7 +26,7 @@ const Login = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-            const handleRoomChange = (roomId) => {
+    const handleRoomChange = (roomId) => {
         setFormData({ ...formData, selectedRoom: roomId });
     };
 
@@ -32,7 +37,12 @@ const Login = () => {
 
         try {
             await login(formData.identifier, formData.password);
-            navigate('/chat');
+            
+            // ✅ ИСПРАВЛЕНО: Сохраняем выбранную комнату в localStorage
+            localStorage.setItem('selectedRoom', formData.selectedRoom);
+            
+            // ✅ ИСПРАВЛЕНО: Перенаправляем с параметром комнаты
+            navigate(`/chat?room=${formData.selectedRoom}`);
         } catch (err) {
             setError(err.message || 'Login failed');
         } finally {
@@ -68,14 +78,15 @@ const Login = () => {
                     placeholder="Password"
                     required
                 />
+                
                 <RoomSelector
                     selectedRoom={formData.selectedRoom}
                     onRoomChange={handleRoomChange}
                 />
+                
                 <Button loading={loading}>
                     Log In
                 </Button>
-
 
                 <div className="d-flex justify-content-between">
                     <Link to="/forgot-password" className="text-decoration-none">

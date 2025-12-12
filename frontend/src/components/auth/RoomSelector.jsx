@@ -13,86 +13,40 @@ const RoomSelector = ({ selectedRoom, onRoomChange }) => {
     const selectedRoomData = ROOMS.find(r => r.id === selectedRoom) || getDefaultRoom();
 
     return (
-        <div className="mb-3">
-            <label className="form-label fw-bold">
-                <i className="bi bi-door-open me-2"></i>
-                Выберите комнату
-            </label>
-            
-            {/* Кнопка для показа списка комнат */}
-            <button
-                type="button"
-                className="btn btn-outline-primary w-100 text-start d-flex align-items-center justify-content-between"
-                onClick={() => setShowRooms(!showRooms)}
-            >
-                <div className="d-flex align-items-center">
-                    <i className={`bi ${selectedRoomData.icon} me-2`} style={{ color: selectedRoomData.color }}></i>
-                    <div>
-                        <div className="fw-bold">{selectedRoomData.name}</div>
-                        <small className="text-muted">{selectedRoomData.description}</small>
-                    </div>
-                </div>
-                <i className={`bi bi-chevron-${showRooms ? 'up' : 'down'}`}></i>
-            </button>
+       <div className="mb-3">
+    <label className="form-label fw-bold">Выберите комнату</label>
 
-            {/* Список комнат */}
-            {showRooms && (
-                <div className="mt-2 border rounded p-2">
-                    {ROOMS.map((room) => (
-                        <div
-                            key={room.id}
-                            className={`room-option p-2 rounded mb-1 cursor-pointer ${
-                                selectedRoom === room.id ? 'bg-primary text-white' : 'hover-bg-light'
-                            }`}
-                            onClick={() => handleRoomSelect(room.id)}
-                            style={{ cursor: 'pointer' }}
-                        >
-                            <div className="d-flex align-items-center">
-                                <div className="form-check">
-                                    <input
-                                        className="form-check-input"
-                                        type="radio"
-                                        name="room"
-                                        id={`room-${room.id}`}
-                                        checked={selectedRoom === room.id}
-                                        onChange={() => handleRoomSelect(room.id)}
-                                    />
-                                </div>
-                                <label
-                                    className="ms-2 flex-grow-1 cursor-pointer"
-                                    htmlFor={`room-${room.id}`}
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    <div className="d-flex align-items-center">
-                                        <i 
-                                            className={`bi ${room.icon} me-2 fs-4`}
-                                            style={{ 
-                                                color: selectedRoom === room.id ? 'white' : room.color 
-                                            }}
-                                        ></i>
-                                        <div>
-                                            <div className="fw-bold">{room.name}</div>
-                                            <small className={selectedRoom === room.id ? 'text-white-50' : 'text-muted'}>
-                                                {room.description}
-                                            </small>
-                                        </div>
-                                    </div>
-                                </label>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+    <div className="row mt-2">
+        {ROOMS.map((room) => (
+            <div className="col-12 col-md-4 mb-2" key={room.id}>
+                <div 
+                    className={`p-2 border rounded d-flex align-items-center ${
+                        selectedRoom === room.id ? "bg-primary text-white" : ""
+                    }`}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => handleRoomSelect(room.id)}
+                >
+                    <input
+                        className="form-check-input me-2"
+                        type="radio"
+                        name="room"
+                        id={`room-${room.id}`}
+                        checked={selectedRoom === room.id}
+                        onChange={() => handleRoomSelect(room.id)}
+                    />
 
-            <style jsx>{`
-                .hover-bg-light:hover {
-                    background-color: #f8f9fa;
-                }
-                .cursor-pointer {
-                    cursor: pointer;
-                }
-            `}</style>
-        </div>
+                    <label
+                        htmlFor={`room-${room.id}`}
+                        className="flex-grow-1"
+                        style={{ cursor: "pointer" }}
+                    >
+                        {room.name}
+                    </label>
+                </div>
+            </div>
+        ))}
+    </div>
+</div>
     );
 };
 

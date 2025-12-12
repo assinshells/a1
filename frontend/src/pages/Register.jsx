@@ -1,3 +1,4 @@
+// frontend/src/pages/Register.jsx
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,7 +27,7 @@ const Register = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-        const handleRoomChange = (roomId) => {
+    const handleRoomChange = (roomId) => {
         setFormData({ ...formData, selectedRoom: roomId });
     };
 
@@ -49,9 +50,14 @@ const Register = () => {
         try {
             await register(
                 formData.username,
-                formData.email || undefined, // Email опционален
+                formData.email || undefined,
                 formData.password
             );
+            
+            // ✅ ИСПРАВЛЕНО: Сохраняем выбранную комнату
+            localStorage.setItem('selectedRoom', formData.selectedRoom);
+            
+            // ✅ ИСПРАВЛЕНО: Перенаправляем с параметром комнаты
             navigate(`/chat?room=${formData.selectedRoom}`);
         } catch (err) {
             setError(err.message || 'Registration failed');
@@ -114,10 +120,12 @@ const Register = () => {
                     placeholder="••••••••"
                     required
                 />
+                
                 <RoomSelector
                     selectedRoom={formData.selectedRoom}
                     onRoomChange={handleRoomChange}
                 />
+                
                 <Button loading={loading}>
                     <i className="bi bi-person-plus me-2"></i>
                     Sign Up
